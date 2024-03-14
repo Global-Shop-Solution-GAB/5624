@@ -1,0 +1,259 @@
+Program.Sub.ScreenSU.Start
+Gui.F_Main..create
+Gui.F_Main..caption("ADP Entry")
+Gui.F_Main..size(3300,2640)
+Gui.F_Main..position(0,0)
+Gui.F_Main..event(UnLoad,unload)
+Gui.F_Main..alwaysontop(True)
+Gui.F_Main..fontname("arial")
+Gui.F_Main..forecolor(0)
+Gui.F_Main..fontstyle(False,False,False,False,False)
+Gui.F_Main..BackColor(-2147483633)
+Gui.F_Main..maxbutton(False)
+Gui.F_Main..mousepointer(0)
+Gui.F_Main..sizeable(False)
+Gui.F_Main..MinX(0)
+Gui.F_Main..MinY(0)
+Gui.F_Main.txt1.create(textbox,"",True,1215,315,0,200,400,True,0,"arial",8,-2147483643,1)
+Gui.F_Main.txt1.text("")
+Gui.F_Main.txt1.maxLength(3)
+Gui.F_Main.lbl1.create(label,"ADP Company",True,1290,255,1,195,195,True,0,"arial",8,-2147483633,0)
+Gui.F_Main.txt2.create(textbox,"",True,1215,300,0,195,1200,True,0,"arial",8,-2147483643,1)
+Gui.F_Main.txt2.text("")
+Gui.F_Main.txt2.maxLength(8)
+Gui.F_Main.lbl2.create(label,"Batch Number",True,1320,255,1,195,1005,True,0,"arial",8,-2147483633,0)
+Gui.F_Main.cmdExport.create(button)
+Gui.F_Main.cmdExport.caption("Export")
+Gui.F_Main.cmdExport.size(975,375)
+Gui.F_Main.cmdExport.position(180,1710)
+Gui.F_Main.cmdExport.fontname("arial")
+Gui.F_Main.cmdExport.event(Click,Process)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.DSN.Declare(String)
+v.Global.sDefaultfolder.Declare
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN, July 26, 2019
+'This program is a modification of program Payroll_ADP_Descr.g2u
+'The program will remove column D,E,F
+'Column C (employee number) will be modified to be Comments 1 from Emp Master
+'Keep running GAB version 1
+'Label Comment 1 at Employee Master is changed to "ADP File #" 
+
+F.Intrinsic.Control.SetErrorHandler("Main_Error")
+F.Intrinsic.Control.ClearErrors
+	V.Local.sError.Declare(String)
+	v.Local.bExist.Declare
+	
+	f.Intrinsic.Control.If(v.Caller.Hook,=,15340)
+		Variable.Passed.000236.Set("ADP File #")
+		Variable.Passed.000235.Set("ADP Company")
+		F.Intrinsic.Variable.SetProperty("000235","PW",100)
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.If(v.Caller.Hook,=,15290)
+		'Check Deffault folder
+		f.Intrinsic.String.Build("{0}\Custom\5624",v.Caller.GlobalDir,v.Global.sDefaultfolder)
+		f.Intrinsic.File.DirExists(v.Global.sDefaultfolder,v.Local.bExist)
+		f.Intrinsic.Control.If(v.Local.bExist.Not)
+			f.Intrinsic.File.CreateDir(v.Global.sDefaultfolder)
+		f.Intrinsic.Control.EndIf	
+		
+		'Default Positive Pay folder that store the csv output file.
+		f.Intrinsic.String.Build("{0}\Custom\5624\{1}",v.Caller.GlobalDir,v.Caller.CompanyCode,v.Global.sDefaultfolder)
+		f.Intrinsic.File.DirExists(v.Global.sDefaultfolder,v.Local.bExist)
+		f.Intrinsic.Control.If(v.Local.bExist.Not)
+			f.Intrinsic.File.CreateDir(v.Global.sDefaultfolder)
+		f.Intrinsic.Control.EndIf
+	
+		Gui.F_main..Show
+		
+		
+	f.Intrinsic.Control.EndIf	
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Error")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: Project",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	f.Intrinsic.Control.CallSub("Unload")
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.unload.Start
+F.Intrinsic.Control.SetErrorHandler("Unload_Error")
+F.Intrinsic.Control.ClearErrors
+	V.Local.sError.Declare(String)
+	
+	F.Intrinsic.Control.If(V.ODBC.conx.State,=,1)
+		F.ODBC.Connection!conx.close
+	F.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.Control.End
+	
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Unload_Error")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: Project",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	f.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.unload.End
+
+Program.Sub.Process.Start
+F.Intrinsic.Control.SetErrorHandler("Sub_Err")
+F.Intrinsic.Control.ClearErrors
+
+	V.Local.sError.Declare(String)
+	Variable.local.export.declare(String)
+	Variable.local.export.redim(0,6)
+	Variable.local.query.declare(String)
+	Variable.Local.I.declare(Long)
+	Variable.local.DIR.declare(String)
+	Variable.local.date.declare(String)
+	Variable.local.file.declare(Long)
+	Variable.local.filename.declare(String)
+	Variable.local.sResult.declare(String)
+	Variable.Local.time.Declare(String)
+	Variable.Local.id.Declare(String)
+	
+	V.Local.CompCode.Declare(String)
+	V.Local.Batchid.Declare(String)
+	V.Local.fileNo.Declare(String)
+	V.Local.FN1.Declare(String)
+	V.Local.FN2.Declare(String)
+	V.Local.FN3.Declare(String)
+	V.Local.FN4.Declare(String)
+	V.Local.FN5.Declare(String)
+	
+	V.Local.shold.Declare(String)
+	v.Local.sFile.Declare
+	v.Local.sContent.Declare
+	
+	Gui.F_Main.cmdExport.Enabled(false)
+	
+	f.Intrinsic.String.Trim(V.Screen.F_Main!txt1.Text,v.Local.CompCode)
+	f.Intrinsic.String.UCase(v.Local.CompCode,v.Local.CompCode)
+	F.Intrinsic.Control.If(V.Local.CompCode.trim,=,"")
+		F.Intrinsic.UI.Msgbox("Must enter an ADP Company Code")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.endif
+	
+	V.Local.Batchid.Set(V.Screen.F_Main!txt2.text)
+	F.Intrinsic.Control.If(V.Local.Batchid.trim,=,"")
+		F.Intrinsic.UI.Msgbox("Must enter a Batch Number")
+		F.Intrinsic.Control.ExitSub
+	F.Intrinsic.Control.endif
+	
+	Function.Odbc.Connection!Conx.Openconnection(Variable.Ambient.pDSN,Variable.Ambient.PUser,Variable.Ambient.PPass)
+	
+	Function.Intrinsic.String.Left(Variable.Passed.888888,8,Variable.Local.date)
+	Function.Intrinsic.String.Mid(Variable.Passed.888888,9,6,Variable.Local.time)
+	Function.Intrinsic.String.Mid(Variable.Passed.888888,15,2,Variable.Local.id)
+	
+	Function.Intrinsic.string.Left(v.Local.CompCode,3,Variable.Local.CompCode)
+	Function.Intrinsic.Control.If(Variable.Local.CompCode.Length,<,3)
+		Function.intrinsic.string.concat(Variable.Local.CompCode,"_",Variable.Local.CompCode)
+	Function.Intrinsic.Control.EndIf
+	
+	
+	f.Intrinsic.String.Build("{0}\EPI{1}AA_{2}.csv",v.Global.sDefaultfolder,v.Caller.CompanyCode,v.Ambient.Now.FormatYYYYMMDDHHNNSS,v.Local.sFile)
+		
+	'Header	
+	v.Local.sContent.Set("Co Code,Batch ID,File #, Reg Hours, O/T Hours")
+	
+	Function.intrinsic.string.concat("SELECT p.EMPLOYEE, p.NAME, p.TYPE, p.EC, p.DESCR, p.HOURS, e.Comments_1 FROM PYRL_LABOR_XFER p left join Employee_MSTR e on p.employee = e.Employee WHERE p.RUN_CYMD = '",Variable.Local.date,"' AND p.RUN_TIME = '",Variable.Local.time,"'"," and UCASE(ltrim(rtrim(e.Comments_2))) = '",v.Local.CompCode,"'",Variable.Local.query)
+	Function.Odbc.Connection!Conx.Openrecordsetro("rstX",Variable.Local.query)
+	
+	
+	Function.Intrinsic.Control.dountil(Variable.Odbc.Conx!Rstx.Eof,=,True)
+		Variable.local.export.redim(0,7)
+		
+		'1/Company Code
+		Function.Intrinsic.string.Left(Variable.Screen.F_Main!txt1.Text,3,Variable.Local.CompCode)
+		F.Intrinsic.String.RPad(V.Local.CompCode," ",3,V.Local.CompCode)
+		Gui.F_Main.txt1.Text(Variable.Local.CompCode)
+		Variable.local.export(0).set(Variable.Local.CompCode)
+		
+		'2/Batch ID
+		Function.Intrinsic.string.Left(Variable.Screen.F_Main!txt2.Text,8,Variable.Local.Batchid)
+		F.Intrinsic.String.RPad(V.Local.Batchid," ",8,V.Local.Batchid)
+		Gui.F_Main.txt2.Text(Variable.Local.Batchid)
+		Variable.local.export(1).set(Variable.Local.Batchid)
+		
+		'3/File Number
+		V.Local.fileNo.Set(Variable.Odbc.Conx!Rstx.Fieldval!Comments_1)
+		F.Intrinsic.String.LPad(V.Local.fileNo,"0",6,V.Local.fileNo)
+		Variable.local.export(2).set(V.Local.fileNo)
+		
+		'4/Employee Name
+		F.Intrinsic.String.LPad(V.ODBC.Conx!rstX.FieldValTrim!NAME," ",30,V.Local.export(3))
+		
+		'5/Hours 3 Code
+		V.Local.FN2.Set(Variable.Odbc.Conx!Rstx.Fieldval!TYPE)
+		Function.Intrinsic.Control.If(Variable.Local.FN2,=,"EC")
+			F.Intrinsic.String.Left(V.ODBC.Conx!rstX.FieldVal!DESCR,2,Variable.local.export(4))
+		F.Intrinsic.Control.Else
+			V.Local.export(4).Set(V.Local.FN2)
+		F.Intrinsic.Control.Endif
+		
+		'6/Hours 3 amount
+		Function.Intrinsic.Control.If(Variable.Local.FN2,=,"DT")
+			Variable.local.export(5).set(Variable.Odbc.Conx!Rstx.Fieldval!Hours)		
+		Function.Intrinsic.Control.elseIf(Variable.Local.FN2,=,"HT")
+			Variable.local.export(5).set(Variable.Odbc.Conx!Rstx.Fieldval!Hours)		
+		Function.Intrinsic.Control.elseIf(Variable.Local.FN2,=,"EC")
+			Variable.local.export(5).set(Variable.Odbc.Conx!Rstx.Fieldval!Hours)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.LPad(Variable.local.FN3," ",6,V.Local.export(5))
+		F.Intrinsic.Control.EndIf
+	
+		'7/Reg Hours
+		Function.Intrinsic.Control.If(Variable.Local.FN2,=,"RT")
+			Variable.local.export(6).set(Variable.Odbc.Conx!Rstx.Fieldval!Hours)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.LPad(Variable.local.FN4," ",6,V.Local.export(6))
+		F.Intrinsic.Control.EndIf
+		
+		'8/OT Hours
+		Function.Intrinsic.Control.If(Variable.Local.FN2,=,"OT")
+			Variable.local.export(7).set(Variable.Odbc.Conx!Rstx.Fieldval!HOURS)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.LPad(Variable.local.FN5," ",6,V.Local.export(7))
+		F.Intrinsic.Control.EndIf
+	
+		f.Intrinsic.String.Build("{0},{1},{2},{3},{4}",v.Local.export(0),v.Local.export(1),v.Local.export(2),v.Local.export(6),v.Local.export(7),v.Local.shold)
+		
+		f.Intrinsic.String.Build("{0}{1}{2}",v.Local.sContent,v.Ambient.NewLine,v.Local.shold,v.Local.sContent)
+		
+		Function.Odbc.Conx!Rstx.movenext
+	Function.intrinsic.control.loop
+	
+	Function.Odbc.Conx!Rstx.Close
+	
+	Function.Intrinsic.File.String2File(v.Local.sFile,v.Local.sContent)
+	f.Intrinsic.String.Build("Done. Exported and created file {0}.",v.Local.sFile,v.Local.shold)
+	f.Intrinsic.UI.Msgbox(v.Local.shold)
+	
+	f.Intrinsic.Control.CallSub("Unload")
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Sub_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: Project",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Process.End
+
+Program.Sub.Comments.Start
+${$0$}$Payroll_ADP_Descr$}$JCT$}$5/2/2014
+${$4$}$0$}$$}$0$}$-1$}$JCT$}$5/2/2014 6:51:13 AM$}$eployee name was listed in field headings, but not pulling through to export.  Corrected line, to include NAME, and changed line join to csvjoin, to allow for commas in employee name field
+Program.Sub.Comments.End
